@@ -11,7 +11,7 @@ import 'package:flutter_test_app/UI_Generics/ui_generics.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 //import 'dart:developer';
-import 'package:flutter_test_app/Backend/bluetooths.dart';
+import 'package:flutter_test_app/Backend/bluetooth.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 

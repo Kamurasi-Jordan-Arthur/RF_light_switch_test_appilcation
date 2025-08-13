@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_test_app/Screens/home.dart';
-import 'package:flutter_test_app/Backend/bluetooths.dart';
+import 'package:flutter_test_app/Backend/bluetooth.dart';
 
 class AppRouting {
   static const String onPathName = "ON";
