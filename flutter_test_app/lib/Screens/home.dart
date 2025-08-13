@@ -11,33 +11,139 @@ import 'package:flutter_test_app/UI_Generics/ui_generics.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 //import 'dart:developer';
-import 'package:flutter_test_app/Backend/bluetooth.dart';
+import 'package:flutter_test_app/Backend/bluetooth_logic.dart';
+import 'package:flutter_test_app/navigation/app_routing.dart';
+import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 
-class BtOnWidget extends StatelessWidget {
+class BtOnWidget extends ConsumerStatefulWidget {
   const BtOnWidget({super.key});
 
   @override
+  ConsumerState<BtOnWidget> createState() => _BtOnWidgetState();
+}
+
+class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
+  bool isdiscovring = true;
+
+  @override
   Widget build(BuildContext context) {
+    
+    final spc5xDevices = ref.watch(foundBleDevicesProvider);
+    final blestatus = ref.watch(bleStatusProvider).value;
+
+    final rowspacing = MediaQuery.of(context).size.height * 0.01; 
+
+    if(ref.read(foundBleDevicesProvider).isEmpty && !scanDevicesSub.isPaused){
+      //workAround for cases when the scan ends and no device found
+        log("Timer Armed.");
+
+        Future.delayed(const Duration(seconds: scanseconds), () {
+           //  if(ref.read(foundBleDevicesProvider).isEmpty){
+              setState(() {
+                log("setting state.");
+                isdiscovring = false;
+              });
+            // }
+
+          });
+    }
     return MyHomePage(
-    message: "Scanning",
+    message: (ref.read(foundBleDevicesProvider).isEmpty) ? 
+              (isdiscovring) ? 
+              "Discovering ..." : "No Devices in visinity" :
+              (isdiscovring) ? 
+              "Discovering ..." : "Dicovered Devices",
 
-    body:  Center(
-
-        child: Column(
-
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'ON',
-              style: Theme.of(context).textTheme.headlineMedium,
+    body: (spc5xDevices.isEmpty) 
+          ?  Center(
+            child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  strokeWidth: 3,
+                ),
+          ) : 
+          Padding(
+          padding: EdgeInsets.only(
+            top: rowspacing,
+            left: rowspacing,
+            right: rowspacing,
+          ),
+          child: Column(
+            children: [
+              (!isdiscovring) ? SizedBox() :
+              Center(
+                child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                      backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                      strokeWidth: 3,
+                    ),
+              ) 
+              ,Expanded(
+              child: ListView.builder(
+                itemCount: spc5xDevices.length,
+                itemBuilder: (context, index) {
+                  final device = spc5xDevices[index];
+              
+                  return ListTile(
+                    title: Text(
+                      device.name.isNotEmpty ? device.name : "N/A",
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: Colors.blue,
+                        letterSpacing: 1.5,
+                        fontSize: rowspacing * 2.5,
+                      ),
+                    ),
+                    subtitle: Text(device.id.toString()),
+                    trailing: Icon(
+                      Icons.bluetooth_connected_outlined,
+                      size: rowspacing * 4,
+                      color: (device.connectable == Connectable.available)
+                          ? Colors.blue
+                          : Colors.grey,
+                    ),
+                    onTap: () {
+                      if (blestatus != BleStatus.ready) {
+                        log("Back to Offstate.");
+                        context.goNamed(AppRouting.offPathName);
+                      }
+              
+                      if (device.connectable == Connectable.available) {
+                        log("Connecting to ${device.id}");
+                        context.goNamed(AppRouting.offPathName, queryParameters: {"deviceIndex" : index});
+                        //connecToDevice(index: index);
+                        //ref.read(foundBleDevicesProvider.notifier).connecto(index);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Center(child: Text('Device is unconnectable!')),
+                          ),
+                        );
+                      }
+                    },
+                  );
+                },
+              ),
             ),
-
-          ],
+            ]
+          ),
         ),
-      )
-      );
+
+        floatingActionButton: FloatingActionButton(
+          child: Text("SCAN"),
+          onPressed: (){
+            if(!isdiscovring){
+                isdiscovring = true;
+                ref.read(foundBleDevicesProvider.notifier).rescan();
+              
+            }
+
+        }),
+
+    );
+
   }
 }
 
@@ -70,10 +176,11 @@ class BtOffWidget extends ConsumerWidget {
       case BleStatus.ready:
         diplayicon = Icons.bluetooth;
         aidText = "Tap to scan devices";
-        feedbackText = "Powered ready";
+        feedbackText = "Powered & ready";
 
         ontap = (){
           // Need to enable bluetooth
+          context.goNamed(AppRouting.onPathName);
         };
         break;
 
@@ -110,14 +217,15 @@ class BtOffWidget extends ConsumerWidget {
             }
           }else{
               status = await [
-                Permission.bluetoothScan,
-                Permission.bluetoothConnect,
+                Permission.bluetooth,
               ].request();
           }
 
           if (status.values.any((value) => !value.isGranted )){
               log(status.toString());
-              await openAppSettings();
+              /* await openAppSettings(); */
+              await AppSettings.openAppSettings(type: AppSettingsType.settings, asAnotherTask: true);
+              log(status.toString());
             }
         };
 
@@ -160,46 +268,47 @@ class BtOffWidget extends ConsumerWidget {
 
 
     return MyHomePage( 
-    message: "Bluetooth Disconnected",
+    message: "RF Light Switch Test App",
 
     body:  GestureDetector(
       onTap: ontap,
       child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              // Grouped Icon + Status Text
-              Column(
-                children: [
-                  Opacity(
-                    opacity: 0.3,
-                    child: Icon(
-                      diplayicon,
-                      size: MediaQuery.of(context).size.height * 0.35,
-                      color: Theme.of(context).colorScheme.inversePrimary,
-                    ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            // Grouped Icon + Status Text
+            Column(
+              children: [
+                Opacity(
+                  opacity: 0.3,
+                  child: Icon(
+                    diplayicon,
+                    size: MediaQuery.of(context).size.height * 0.35,
+                    color: Theme.of(context).colorScheme.inversePrimary,
                   ),
-                  //SizedBox(height: 7), // spacing between icon and text
-                  Text(
-                    feedbackText,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ],
-              ),
-      
-              // Feedback Text
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  aidText ?? "",
-                  style: Theme.of(context).textTheme.bodySmall,
-                  textAlign: TextAlign.center,
                 ),
+                //SizedBox(height: 7), // spacing between icon and text
+                Text(
+                  feedbackText,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ],
+              
+            ),
+              
+            // Feedback Text
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                aidText ?? "",
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
               ),
-            ],
-          )
-      ,     ),
+            ),
+          ],
+        ),
+      ),
     )
       );
   }

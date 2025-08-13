@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class MyHomePage extends ConsumerWidget {
-  const MyHomePage({super.key, required this.message, required this.body});
+  const MyHomePage({super.key,
+  required this.message, required this.body,
+  this.floatingActionButton = const SizedBox()});
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -15,6 +17,7 @@ class MyHomePage extends ConsumerWidget {
 
   final String message;
   final Widget body;
+  final Widget floatingActionButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,12 +30,12 @@ class MyHomePage extends ConsumerWidget {
               toolbarHeight: MediaQuery.of(context).size.height * 0.2,
               title: Text(
                 message,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  letterSpacing: 1.2,
-                ),
+                style: Theme.of(context).textTheme.headlineLarge
+                ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            letterSpacing: 2.0,
+                          ),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(
@@ -41,6 +44,7 @@ class MyHomePage extends ConsumerWidget {
               ),
             ),
       body: body,
+      floatingActionButton: floatingActionButton,
     );
   }
 }

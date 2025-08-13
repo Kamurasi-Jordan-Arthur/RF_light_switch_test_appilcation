@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_test_app/Screens/home.dart';
-import 'package:flutter_test_app/Backend/bluetooth.dart';
+import 'package:flutter_test_app/Backend/bluetooth_logic.dart';
 
 class AppRouting {
   static const String onPathName = "ON";
   static const String offPathName = "OFF";
+  static const String connectedDevice = "DEVICE";
 }
 
 
@@ -24,10 +25,20 @@ final GoRouter _router = GoRouter(
     // the on route
     GoRoute(
       name: AppRouting.onPathName,
-      path: '/ON',
+      path: '/${AppRouting.onPathName}',
       builder: (BuildContext context, GoRouterState state) {
         return const BtOnWidget();
       },
+      routes: [
+            GoRoute(
+              name: AppRouting.connectedDevice,
+              path: AppRouting.connectedDevice,
+              builder: (BuildContext context, GoRouterState state) {
+                
+                return BtOffWidget();
+              },
+    ),
+      ]
     ),
   ],
 );
