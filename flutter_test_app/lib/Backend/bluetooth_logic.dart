@@ -29,7 +29,7 @@ const int scanseconds = 5;
 late StreamSubscription<DiscoveredDevice> scanDevicesSub;
 
 void scanDevices({required Ref ref}) {
-
+//var uuid = Uuid.parse("bb3343ac-302d-40c8-bdce-ec4f11964ea2");
   scanDevicesSub = bleInst
       .scanForDevices(withServices: [])
       .listen(

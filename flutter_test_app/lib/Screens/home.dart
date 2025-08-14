@@ -20,22 +20,45 @@ import 'package:permission_handler/permission_handler.dart';
 class BtOnWidget extends ConsumerStatefulWidget {
   const BtOnWidget({super.key});
 
+
   @override
   ConsumerState<BtOnWidget> createState() => _BtOnWidgetState();
 }
 
 class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
   bool isdiscovring = true;
+  late List<DiscoveredDevice> spc5xDevices;
+  late BleStatus? blestatus ;
+
+
+/*   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_){
+
+          if(blestatus != BleStatus.ready){
+            log("Setting state");
+            ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Center(child: Text('Device is unconnectable!')),
+                        ),
+                      );
+          }
+      }
+    );
+  } */
+
 
   @override
   Widget build(BuildContext context) {
     
-    final spc5xDevices = ref.watch(foundBleDevicesProvider);
-    final blestatus = ref.watch(bleStatusProvider).value;
+    spc5xDevices = ref.watch(foundBleDevicesProvider);
+    blestatus = ref.watch(bleStatusProvider).value;
 
     final rowspacing = MediaQuery.of(context).size.height * 0.01; 
 
-    if(ref.read(foundBleDevicesProvider).isEmpty && !scanDevicesSub.isPaused){
+    if(ref.read(foundBleDevicesProvider).isEmpty && isdiscovring){
       //workAround for cases when the scan ends and no device found
         log("Timer Armed.");
 
@@ -49,6 +72,10 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
 
           });
     }
+
+
+
+
     return MyHomePage(
     message: (ref.read(foundBleDevicesProvider).isEmpty) ? 
               (isdiscovring) ? 
@@ -57,7 +84,9 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
               "Discovering ..." : "Dicovered Devices",
 
     body: (spc5xDevices.isEmpty) 
-          ?  Center(
+          ?  (!isdiscovring) ? 
+          SizedBox() : 
+          Center(
             child: CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                   backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
@@ -87,6 +116,14 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
                   final device = spc5xDevices[index];
               
                   return ListTile(
+                    leading: Icon(
+                      Icons.bluetooth_connected_outlined,
+                      size: rowspacing * 4,
+                      color: (device.connectable == Connectable.available)
+                          ? Colors.blue
+                          : Colors.grey,
+                    ),
+
                     title: Text(
                       device.name.isNotEmpty ? device.name : "N/A",
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -97,22 +134,16 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
                       ),
                     ),
                     subtitle: Text(device.id.toString()),
-                    trailing: Icon(
-                      Icons.bluetooth_connected_outlined,
-                      size: rowspacing * 4,
-                      color: (device.connectable == Connectable.available)
-                          ? Colors.blue
-                          : Colors.grey,
-                    ),
-                    onTap: () {
+                    trailing: ElevatedButton(onPressed: (){
                       if (blestatus != BleStatus.ready) {
                         log("Back to Offstate.");
                         context.goNamed(AppRouting.offPathName);
+                        return;
                       }
               
                       if (device.connectable == Connectable.available) {
                         log("Connecting to ${device.id}");
-                        context.goNamed(AppRouting.offPathName, queryParameters: {"deviceIndex" : index});
+                        context.goNamed(AppRouting.connectedDevice, pathParameters: {"deviceIndex" : index.toString()});
                         //connecToDevice(index: index);
                         //ref.read(foundBleDevicesProvider.notifier).connecto(index);
                       } else {
@@ -121,6 +152,12 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
                             content: Center(child: Text('Device is unconnectable!')),
                           ),
                         );
+                      }
+                    }, child: Text("Select")),
+                    onTap: () {
+                      if (blestatus != BleStatus.ready) {
+                        log("Back to Offstate.");
+                        context.goNamed(AppRouting.offPathName);
                       }
                     },
                   );
@@ -134,10 +171,14 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
         floatingActionButton: FloatingActionButton(
           child: Text("SCAN"),
           onPressed: (){
-            if(!isdiscovring){
-                isdiscovring = true;
-                ref.read(foundBleDevicesProvider.notifier).rescan();
-              
+            if (blestatus == BleStatus.ready) {
+                if(!isdiscovring){
+                    isdiscovring = true;
+                    ref.read(foundBleDevicesProvider.notifier).rescan();
+                  
+                }
+            }else{
+              context.goNamed(AppRouting.offPathName);
             }
 
         }),
@@ -174,7 +215,7 @@ class BtOffWidget extends ConsumerWidget {
 
     switch (blestatus) {
       case BleStatus.ready:
-        diplayicon = Icons.bluetooth;
+        diplayicon = Icons.search;
         aidText = "Tap to scan devices";
         feedbackText = "Powered & ready";
 

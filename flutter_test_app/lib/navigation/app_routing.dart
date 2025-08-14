@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_test_app/Screens/connected_device.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_test_app/Screens/home.dart';
 import 'package:flutter_test_app/Backend/bluetooth_logic.dart';
@@ -17,9 +18,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       name: AppRouting.offPathName,
       path: '/',
-      builder: (BuildContext context, GoRouterState state) {
-        return BtOffWidget();
-      },
+      builder: (BuildContext context, GoRouterState state) => BtOffWidget(),
     ),
 
     // the on route
@@ -32,10 +31,10 @@ final GoRouter _router = GoRouter(
       routes: [
             GoRoute(
               name: AppRouting.connectedDevice,
-              path: AppRouting.connectedDevice,
+              path: "${AppRouting.connectedDevice}/:deviceIndex",
               builder: (BuildContext context, GoRouterState state) {
                 
-                return BtOffWidget();
+                return Devicewidget(deviceIndex: int.parse(state.pathParameters["deviceIndex"]!) );
               },
     ),
       ]

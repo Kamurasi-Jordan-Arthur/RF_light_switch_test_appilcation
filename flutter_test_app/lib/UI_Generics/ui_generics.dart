@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class MyHomePage extends ConsumerWidget {
   const MyHomePage({super.key,
   required this.message, required this.body,
-  this.floatingActionButton = const SizedBox()});
+  this.floatingActionButton,
+  this.postbuildcallback });
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -17,10 +18,19 @@ class MyHomePage extends ConsumerWidget {
 
   final String message;
   final Widget body;
-  final Widget floatingActionButton;
+  final Widget? floatingActionButton;
+  final VoidCallback? postbuildcallback;
+
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+
+      WidgetsBinding.instance.addPostFrameCallback((_){
+        postbuildcallback?.call();
+        
+      }
+    );
     
     return Scaffold(
       appBar:AppBar(
@@ -32,9 +42,9 @@ class MyHomePage extends ConsumerWidget {
                 message,
                 style: Theme.of(context).textTheme.headlineLarge
                 ?.copyWith(
-                            fontWeight: FontWeight.w600,
+                            //fontWeight: FontWeight.w600,
                             color: Theme.of(context).colorScheme.onPrimary,
-                            letterSpacing: 2.0,
+                            //letterSpacing: 2.0,
                           ),
               ),
               shape: RoundedRectangleBorder(
