@@ -168,20 +168,20 @@ class _BtOnWidgetState extends ConsumerState<BtOnWidget> {
           ),
         ),
 
-        floatingActionButton: FloatingActionButton(
-          child: Text("SCAN"),
-          onPressed: (){
-            if (blestatus == BleStatus.ready) {
-                if(!isdiscovring){
-                    isdiscovring = true;
-                    ref.read(foundBleDevicesProvider.notifier).rescan();
-                  
-                }
-            }else{
-              context.goNamed(AppRouting.offPathName);
+    floatingActionButton: FloatingActionButton(
+      child: Text("SCAN"),
+      onPressed: (){
+        if (blestatus == BleStatus.ready) {
+            if(!isdiscovring){
+                isdiscovring = true;
+                ref.read(foundBleDevicesProvider.notifier).rescan();
+              
             }
+        }else{
+          context.goNamed(AppRouting.offPathName);
+        }
 
-        }),
+    }),
 
     );
 

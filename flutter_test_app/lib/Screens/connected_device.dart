@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart' show FilePicker, FilePickerResult, FileType;
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,112 +103,132 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
         var serviceId = Uuid.parse("222c444c-8fc9-4318-b4a6-3214cf2200c0");
         var characteristicId = Uuid.parse("85342c44-a1ac-43fd-8610-f4bec833e11d");
         var qCharacteristic = QualifiedCharacteristic(characteristicId: characteristicId, serviceId: serviceId, deviceId: deviceId);
-        var chunkSize = await bleInst.requestMtu(deviceId: deviceConnectionState.value!.deviceId, mtu: 244);
+
+
+        var chunkSize = await bleInst.requestMtu(deviceId: deviceConnectionState.value!.deviceId, mtu: 512) - 5; // MTU - Header bytes
+
+        chunkSize &= ~0x7;
 
         log("MTU : $chunkSize");
-        
-      await bleInst.writeCharacteristicWithoutResponse(
-            qCharacteristic,
-            value: [103,],
-      );
-      return;
+      
+        // Request for un update; with command 100 and Update File size
+        final bytes = Uint8List(7); // 1 (100) + 4 (length)
+        final bytesB = bytes.buffer.asByteData();
 
-      for (var i = 0; i < filedata.length; i += chunkSize) {
-        final chunk = filedata.sublist(
-            i, i + chunkSize > filedata.length ? filedata.length : i + chunkSize);
+        bytes[0] = 100;
+        bytesB.setUint16(1, chunkSize, Endian.little);
+        bytesB.setUint32(3, filedata.length, Endian.little);
+
+        log("Buffer : $bytes");
 
         await bleInst.writeCharacteristicWithResponse(
-          qCharacteristic,
-          value: chunk,
+              qCharacteristic,
+              value: bytes,
         );
 
-      }
+        log("CMD  sent");
+
+        int j = 0;
+        for (var i = 0; j < filedata.length; i += chunkSize) {
+             j = (i + chunkSize > filedata.length) ? filedata.length : i + chunkSize;
+          final chunk = filedata.sublist(
+              i, j);
+
+          await bleInst.writeCharacteristicWithResponse(
+            qCharacteristic,
+            value: chunk,
+          );
+
+          log("$j - bytes sent");
+
+        }
+        log("Done programing");
 
         
       }
         
-    Widget connectionWidget({required ConnectionStateUpdate state}){
-          switch (state.connectionState) {
-            case DeviceConnectionState.connecting:
-            return MyHomePage(
-                        message: deviceConnectionState.value?.deviceId ?? "Unkown device",
-                        body: Center(
-                          child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
-                                      backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-                                      strokeWidth: 3,
-                                    ),
-                        ),
-                      );
-                        /* 
-            case DeviceConnectionState.connected:
-            case DeviceConnectionState.disconnecting:
-            case DeviceConnectionState.disconnected:
+      Widget connectionWidget({required ConnectionStateUpdate state}){
+            switch (state.connectionState) {
+              case DeviceConnectionState.connecting:
               return MyHomePage(
+                          message: deviceConnectionState.value?.deviceId ?? "Unkown device",
+                          body: Center(
+                            child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                                        backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                                        strokeWidth: 3,
+                                      ),
+                          ),
+                        );
+                          /* 
+              case DeviceConnectionState.connected:
+              case DeviceConnectionState.disconnecting:
+              case DeviceConnectionState.disconnected:
+                return MyHomePage(
+                    message: deviceConnectionState.value?.deviceId ?? "Unkown device",
+                    body: Center(child: Text(state.toString())),
+                    postbuildcallback: connectionErrorPostBuild,
+
+                    );
+       */
+              default:
+                
+                return MyHomePage(
                   message: deviceConnectionState.value?.deviceId ?? "Unkown device",
-                  body: Center(child: Text(state.toString())),
-                  postbuildcallback: connectionErrorPostBuild,
-
-                  );
- */
-            default:
-              
-              return MyHomePage(
-                message: deviceConnectionState.value?.deviceId ?? "Unkown device",
-                body: Center(child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  //crossAxisAlignment:,
-                  children: [
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          filename,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                          textAlign: TextAlign.center,
+                  body: Center(child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    //crossAxisAlignment:,
+                    children: [
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            filename,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
-                    ),
-                    //SizedBox(height: MediaQuery.of(context).size.height * 0.05,),
-
-                    ElevatedButton.icon(
-                                onPressed: (filedata.isNotEmpty) ? 
-                                 uploadFile:
-                                 (){},
-                              icon: Icon(Icons.file_upload_sharp,
-                                  size: MediaQuery.of(context).size.height * 0.1,
-                                  color: (filedata.isNotEmpty) ? 
-                                      Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9):
-                                      Theme.of(context).colorScheme.inversePrimary.withOpacity(0.5),
-                                  semanticLabel: "Upload"),
-                    
-                                  label: Text("Upload"),
-                        ),
                       //SizedBox(height: MediaQuery.of(context).size.height * 0.05,),
 
                       ElevatedButton.icon(
-                                onPressed: getFile,
-                                icon: Icon(Icons.folder_outlined,
+                                  onPressed: (filedata.isNotEmpty) ? 
+                                  uploadFile:
+                                  (){},
+                                icon: Icon(Icons.file_upload_sharp,
                                     size: MediaQuery.of(context).size.height * 0.1,
-                                    color: Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9),
-                                    semanticLabel:"Select File"),
-                                    label: Text("Select File"),
-                        ),
+                                    color: (filedata.isNotEmpty) ? 
+                                        Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9):
+                                        Theme.of(context).colorScheme.inversePrimary.withOpacity(0.5),
+                                    semanticLabel: "Upload"),
+                      
+                                    label: Text("Upload"),
+                          ),
+                        //SizedBox(height: MediaQuery.of(context).size.height * 0.05,),
 
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.1,),
-                      Text(updatestate),
-                  ],
-                )
-                  ),
-                postbuildcallback: connectionErrorPostBuild,
+                        ElevatedButton.icon(
+                                  onPressed: getFile,
+                                  icon: Icon(Icons.folder_outlined,
+                                      size: MediaQuery.of(context).size.height * 0.1,
+                                      color: Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9),
+                                      semanticLabel:"Select File"),
+                                      label: Text("Select File"),
+                          ),
 
-                );
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.1,),
+                        Text(updatestate),
+                    ],
+                  )
+                    ),
+                  postbuildcallback: connectionErrorPostBuild,
 
-          }
-    }
+                  );
+
+            }
+        } 
 
     return deviceConnectionState.when(
       data: (state) { 
