@@ -9,6 +9,7 @@ import 'package:flutter_test_app/Backend/bluetooth_logic.dart';
 import 'package:flutter_test_app/UI_Generics/ui_generics.dart';
 import 'package:flutter_test_app/navigation/app_routing.dart';
 import 'package:go_router/go_router.dart';
+import 'package:percent_indicator/flutter_percent_indicator.dart';
 
 
 
@@ -23,13 +24,14 @@ class Devicewidget extends ConsumerStatefulWidget {
 class _DevicewidgetState extends ConsumerState<Devicewidget> {
     List<int> filedata = [];
     String filename = "";
-    String updatestate = "";
+    bool updating = false;
+    int updateProgress = 0;
 
 
   @override
   Widget build(BuildContext context) {
     var deviceConnectionState = ref.watch(connecToDeviceProvider(index: widget.deviceIndex));
-    //var connectedDevice = ref.read(foundBleDevicesProvider.notifier).deviceFromIndex(index : deviceIndex);
+    var connectedDevice = ref.read(foundBleDevicesProvider.notifier).deviceFromIndex(index : widget.deviceIndex);
     //var mm = ref.watch(bleStatusProvider);
     //log(filedata.toString());
 
@@ -46,7 +48,7 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
         case DeviceConnectionState.disconnected:
             String disconnectedMsg = "Disconnected";
 
-            if(deviceConnectionState.value?.failure != null){
+            if(deviceConnectionState.value?.failure != null) {
               disconnectedMsg = deviceConnectionState.value!.failure!.message;
             }
 
@@ -55,8 +57,9 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
                   content: Center(child: Text(disconnectedMsg)),
                   ),
               );
+            
+            //context.goNamed(AppRouting.onPathName);
 
-            context.goNamed(AppRouting.onPathName);
 
           break;
         default:
@@ -65,6 +68,10 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
     }
 
       getFile() async{
+        if(deviceConnectionState.value?.connectionState == DeviceConnectionState.disconnected){
+          context.goNamed(AppRouting.onPathName);
+          return;
+        }
         filedata = [];
         FilePickerResult? result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
@@ -92,13 +99,21 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
               }); */
           }
           filename = result.files.first.name;
-          setState(() { });
+          setState(() {
+              updateProgress = 1;
+
+           });
 
 
         }
       }
 
       uploadFile() async{
+        if(deviceConnectionState.value?.connectionState == DeviceConnectionState.disconnected){
+          context.goNamed(AppRouting.onPathName);
+          return;
+        }
+
         var deviceId = deviceConnectionState.value!.deviceId;
         var serviceId = Uuid.parse("222c444c-8fc9-4318-b4a6-3214cf2200c0");
         var characteristicId = Uuid.parse("85342c44-a1ac-43fd-8610-f4bec833e11d");
@@ -120,29 +135,44 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
         bytesB.setUint32(3, filedata.length, Endian.little);
 
         log("Buffer : $bytes");
-
+      try {
         await bleInst.writeCharacteristicWithResponse(
-              qCharacteristic,
-              value: bytes,
+          qCharacteristic,
+          value: bytes,
         );
 
-        log("CMD  sent");
+        log("CMD sent");
 
-        int j = 0;
-        for (var i = 0; j < filedata.length; i += chunkSize) {
-             j = (i + chunkSize > filedata.length) ? filedata.length : i + chunkSize;
-          final chunk = filedata.sublist(
-              i, j);
+        updateProgress = 0;
+        for (var i = 0; updateProgress < filedata.length; i += chunkSize) {
+          updateProgress = (i + chunkSize > filedata.length) ? filedata.length : i + chunkSize;
+          final chunk = filedata.sublist(i, updateProgress);
 
           await bleInst.writeCharacteristicWithResponse(
             qCharacteristic,
             value: chunk,
           );
-
-          log("$j - bytes sent");
-
+          log("$updateProgress bytes sent");
+          setState(() {});
         }
-        log("Done programing");
+         setState(() {
+          updating = false;
+
+         });
+
+        log("Done programming ✅");
+
+      } catch (error, stackTrace) {
+        log("Error: $error \nStackTrace: $stackTrace");
+        setState(() {
+          updating = false;
+          //updateProgress = 30;
+
+        });
+        // Optionally rethrow if you want the caller to also see it
+        // throw e;
+      }
+
 
         
       }
@@ -151,7 +181,9 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
             switch (state.connectionState) {
               case DeviceConnectionState.connecting:
               return MyHomePage(
-                          message: deviceConnectionState.value?.deviceId ?? "Unkown device",
+                          message:  (connectedDevice.name != "") ?
+                            connectedDevice.name:
+                            deviceConnectionState.value?.deviceId ?? "Unkown device",
                           body: Center(
                             child: CircularProgressIndicator(
                                         valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
@@ -174,35 +206,44 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
               default:
                 
                 return MyHomePage(
-                  message: deviceConnectionState.value?.deviceId ?? "Unkown device",
+                  message: (connectedDevice.name != "") ?
+                    connectedDevice.name:
+                    deviceConnectionState.value?.deviceId ?? "Unkown device",
                   body: Center(child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     //crossAxisAlignment:,
                     children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                            filename,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                            textAlign: TextAlign.center,
+                      if(filedata.isNotEmpty)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              filename,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
-                        ),
-                      ),
-                      //SizedBox(height: MediaQuery.of(context).size.height * 0.05,),
+                        )
+                      else
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.1,),
 
                       ElevatedButton.icon(
-                                  onPressed: (filedata.isNotEmpty) ? 
-                                  uploadFile:
+                                  onPressed: (filedata.isNotEmpty && !updating) ? 
+                                  (){   
+                                    setState(() {
+                                      updating = true;
+                                      });
+                                    uploadFile();
+                                    }:
                                   (){},
                                 icon: Icon(Icons.file_upload_sharp,
                                     size: MediaQuery.of(context).size.height * 0.1,
-                                    color: (filedata.isNotEmpty) ? 
+                                    color: (filedata.isNotEmpty && !updating) ? 
                                         Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9):
-                                        Theme.of(context).colorScheme.inversePrimary.withOpacity(0.5),
+                                        Theme.of(context).colorScheme.inversePrimary.withOpacity(0.4),
                                     semanticLabel: "Upload"),
                       
                                     label: Text("Upload"),
@@ -210,16 +251,61 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
                         //SizedBox(height: MediaQuery.of(context).size.height * 0.05,),
 
                         ElevatedButton.icon(
-                                  onPressed: getFile,
+                                  onPressed:(!updating) ? 
+                                    getFile :
+                                    (){},
                                   icon: Icon(Icons.folder_outlined,
                                       size: MediaQuery.of(context).size.height * 0.1,
-                                      color: Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9),
+                                      color: (!updating) ? 
+                                          Theme.of(context).colorScheme.inversePrimary.withOpacity(0.9):
+                                          Theme.of(context).colorScheme.inversePrimary.withOpacity(0.4),
                                       semanticLabel:"Select File"),
                                       label: Text("Select File"),
                           ),
 
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.1,),
-                        Text(updatestate),
+                        if (updateProgress != 0)
+                          
+                          ...[
+                              SizedBox(height: MediaQuery.of(context).size.height * 0.07,),
+                              Text("!!Please keep the connection and this screen alive!!"),
+
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.height * 0.01 ),
+                                child: LinearPercentIndicator(
+                                  //animation: true,
+                                  //animationDuration: 1000,
+                                  width: MediaQuery.of(context).size.width - 50,
+                                  lineHeight : MediaQuery.of(context).size.width / 10,
+                                  percent: updateProgress/filedata.length,
+                                  center: Text("${(updateProgress/filedata.length * 100).toStringAsFixed(2)}%",
+                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                      color: Colors.deepPurple
+                                        ),
+                                  ),
+                                  //linearStrokeCap: LinearStrokeCap.butt,
+                                  progressColor: Colors.green[200],
+                                
+                                  backgroundColor: (updating) ?
+                                    Theme.of(context).colorScheme.onPrimary:
+                                    Colors.red[400],
+
+                                  trailing: (filedata.length == updateProgress) ?
+                                    Icon(Icons.check_rounded,
+                                      color: Colors.lightGreen,) :
+                                    (!updating) ?
+                                      Icon(Icons.priority_high,
+                                        color: Colors.red,):
+                                      null ,
+                                ),
+                              ),
+                          ]
+                        else
+                            SizedBox(height: MediaQuery.of(context).size.height * 0.2,),
+
+                          //Text("!!Please keep this connection and the connection alive!!"),
+
+
+
                     ],
                   )
                     ),
@@ -233,7 +319,7 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
     return deviceConnectionState.when(
       data: (state) { 
         //ConnectionStateUpdate 
-          log(state.failure?.message ?? "Null");
+          //log(state.failure?.message ?? "Null");
           return connectionWidget(state: state);
         },
       error: (obj, stack){
