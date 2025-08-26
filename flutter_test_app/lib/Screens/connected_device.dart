@@ -58,7 +58,9 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
                   ),
               );
             
-            //context.goNamed(AppRouting.onPathName);
+            if(filedata.isEmpty){
+              context.goNamed(AppRouting.onPathName);
+            }
 
 
           break;
@@ -118,7 +120,10 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
         var serviceId = Uuid.parse("222c444c-8fc9-4318-b4a6-3214cf2200c0");
         var characteristicId = Uuid.parse("85342c44-a1ac-43fd-8610-f4bec833e11d");
         var qCharacteristic = QualifiedCharacteristic(characteristicId: characteristicId, serviceId: serviceId, deviceId: deviceId);
-
+        var bslPassword = [255, 255, 255, 255, 255, 255, 255, 255,
+                            255, 255, 255, 255, 255, 255, 255, 255,
+                            255, 255, 255, 255, 255, 255, 255, 255,
+                            255, 255, 255, 255, 255, 255, 255, 255];
 
         var chunkSize = await bleInst.requestMtu(deviceId: deviceConnectionState.value!.deviceId, mtu: 512) - 5; // MTU - Header bytes
 
@@ -127,13 +132,14 @@ class _DevicewidgetState extends ConsumerState<Devicewidget> {
         log("MTU : $chunkSize");
       
         // Request for un update; with command 100 and Update File size
-        final bytes = Uint8List(7); // 1 (100) + 4 (length)
+        final bytes = Uint8List(39); // 1 (100) + 2 (chunck size) + 4 (firmware file length) + 16 (firmware update password)
         final bytesB = bytes.buffer.asByteData();
 
         bytes[0] = 100;
         bytesB.setUint16(1, chunkSize, Endian.little);
         bytesB.setUint32(3, filedata.length, Endian.little);
-
+        bytes.setRange(7, 39 , bslPassword, 0);
+        //log(bytes.toString());
         log("Buffer : $bytes");
       try {
         await bleInst.writeCharacteristicWithResponse(

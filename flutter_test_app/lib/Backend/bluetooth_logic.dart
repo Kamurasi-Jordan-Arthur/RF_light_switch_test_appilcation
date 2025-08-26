@@ -24,7 +24,7 @@ Stream<BleStatus> bleStatus(Ref ref) {
   return bleInst.statusStream;
 }
 
-const int scanseconds = 5;
+const int scanseconds = 7;
 
 late StreamSubscription<DiscoveredDevice> scanDevicesSub;
 
